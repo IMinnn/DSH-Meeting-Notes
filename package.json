@@ -50,9 +50,7 @@
     "README.md",
     "smoke.mjs",
     "client-smoke.mjs",
-    "vocabulary-smoke.mjs",
-    "runtime-smoke.mjs",
-    "stop-latency.mjs"
+    "vocabulary-smoke.mjs"
   ],
   "license": "MIT",
   "dependencies": {
