@@ -1,0 +1,88 @@
+{
+  "name": "dsh-meeting-notes",
+  "version": "0.2.4",
+  "scripts": {
+    "test": "node vocabulary-smoke.mjs && node smoke.mjs && node client-smoke.mjs && node capture-platform-smoke.mjs"
+  },
+  "description": "会议记录：输入框下方一键开录，实录弹窗实时转写、要点与安排合并一份清单、可生成导出纪要；模型与发言人等配置在 DSH 设置 → 会议记录",
+  "author": "derived from dsh-meeting-room by 杨道泉 <yangdaoquan@qq.com>",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kekydream/dsh-meeting-room.git"
+  },
+  "homepage": "https://github.com/kekydream/dsh-meeting-room#readme",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "meeting",
+    "minutes",
+    "transcription",
+    "speaker-diarization",
+    "会议记录",
+    "会议纪要",
+    "转写",
+    "发言人分离"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "host-*.js",
+    "speaker-worker.js",
+    "tools/mn-audio.swift",
+    "tools/mn-system-audio.swift",
+    "tools/mn-system-audio.cs",
+    "capture-platform-smoke.mjs",
+    "minutes-docx.py",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "LICENSE",
+    "README.md",
+    "smoke.mjs",
+    "client-smoke.mjs",
+    "vocabulary-smoke.mjs",
+    "runtime-smoke.mjs",
+    "stop-latency.mjs"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "pinyin-pro": "^3.27.0"
+  },
+  "peerDependencies": {
+    "sherpa-onnx-node": "1.13.8"
+  },
+  "peerDependenciesMeta": {
+    "sherpa-onnx-node": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=20",
+    "dsh": ">=0.2.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-workspace",
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ]
+    }
+  }
+}
