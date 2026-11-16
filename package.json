@@ -9,9 +9,9 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kekydream/dsh-meeting-room.git"
+    "url": "git+https://github.com/IMinnn/DSH-Meeting-Notes.git"
   },
-  "homepage": "https://github.com/kekydream/dsh-meeting-room#readme",
+  "homepage": "https://github.com/IMinnn/DSH-Meeting-Notes#readme",
   "keywords": [
     "dsh",
     "dsh-plugin",
