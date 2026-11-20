@@ -666,6 +666,11 @@ registerProcessor('meeting-notes-inject', MeetingInject)
 .mn-list { display: flex; flex-direction: column; gap: 2px; }
 .mn-row { display: flex; align-items: baseline; gap: 8px; padding: 3px 6px; border-radius: 6px; }
 .mn-row:hover { background: var(--dsw-alias-bg-layer-2); }
+.mn-cue { background: transparent; }
+.mn-cue:not(:disabled) { cursor: pointer; }
+.mn-cue[aria-current="time"] { background: var(--dsw-alias-bg-layer-1); }
+@media (hover:hover) { .mn-cue:not(:disabled):hover { background: var(--dsw-alias-interactive-bg-hover, var(--dsw-alias-bg-layer-2)); } }
+.mn-cue:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: -2px; }
 .mn-hover { transition: background .12s ease; }
 .mn-hover:hover { background: var(--dsw-alias-bg-layer-2); }
 /* The speaker chip inside a transcript row: same pill as before, but a button now —
@@ -3300,8 +3305,8 @@ registerProcessor('meeting-notes-inject', MeetingInject)
       if (!value) body = empty(error ? '加载失败，请检查错误后重试' : '正在加载会议…')
       else if (tab === 'transcript') body = cues.length ? cues.filter((cue) => !query || seenOf(cue).toLowerCase().includes(query.toLowerCase())).map((cue, index) => h('button', {
         key: cue.id || index, type: 'button', disabled: !value.audioName, title: value.audioName ? tx('seekHint') : undefined, onClick: () => seek(cue.start),
-        style: { display: 'grid', gridTemplateColumns: '52px 1fr', gap: 12, width: '100%', textAlign: 'left', border: 0, borderRadius: 8, padding: '14px 8px', cursor: 'pointer', color: 'inherit',
-          background: playhead >= cue.start && playhead < cue.end ? 'var(--dsw-alias-bg-l1)' : 'transparent' },
+        className: 'mn-cue', 'aria-current': playhead >= cue.start && playhead < cue.end ? 'time' : undefined,
+        style: { display: 'grid', gridTemplateColumns: '52px 1fr', gap: 12, width: '100%', textAlign: 'left', border: 0, borderRadius: 8, padding: '14px 8px', color: 'inherit' },
       }, [h('span', { key: 'time', style: styles.hint }, clock(cue.start)), h('span', { key: 'text', style: { lineHeight: 1.8 }, title: seenOf(cue) === cue.text ? undefined : cue.text }, [
         h('strong', { key: 'speaker', style: { display: 'block', fontSize: 12 } }, value.speakers?.[cue.speaker] || cue.speaker || '发言人'), seenOf(cue),
       ])])) : empty('未检测到足够的有效内容，可能是音频过短或内容不清晰。仍可在上方播放原始录音。')
