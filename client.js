@@ -3194,14 +3194,13 @@ registerProcessor('meeting-notes-inject', MeetingInject)
       // one-shot /summary-session check lands; !alive is what offers reopening.
       const [summarySeat, setSummarySeat] = React.useState(null)
       const audio = React.useRef(null)
-      const bar = React.useRef(null)
-      const dragging = React.useRef(false)
+      const pendingSeek = React.useRef(null)
       const loaded = React.useRef('')
       React.useEffect(() => {
         let live = true
         let running = false
         update(null); setNotes(''); setDocumentText(''); fail(''); select('transcript'); setEditing(false); setDraft(''); setQuery(''); notify(''); loaded.current = ''
-        setPlayhead(0); setPlaying(false); setDuration(0); dragging.current = false
+        setPlayhead(0); setPlaying(false); setDuration(0); pendingSeek.current = null
         const refresh = async () => {
           if (running) return
           running = true
@@ -3231,10 +3230,13 @@ registerProcessor('meeting-notes-inject', MeetingInject)
           .catch(() => { if (live) setSummarySeat(null) })
         return () => { live = false }
       }, [id])
+      const total = duration > 0 ? duration : Math.max(0, Number(value?.seconds) || 0)
       const seek = (seconds) => {
-        if (!audio.current) return
-        const target = duration > 0 ? Math.min(Math.max(0, seconds), duration) : Math.max(0, seconds)
-        audio.current.currentTime = target
+        const el = audio.current
+        if (!el || !Number.isFinite(seconds)) return
+        const target = Math.max(0, duration > 0 ? Math.min(seconds, duration) : seconds)
+        if (el.readyState === 0) pendingSeek.current = target
+        else el.currentTime = target
         setPlayhead(target)
       }
       // Play/pause for the hidden <audio>: the pane owns the whole player chrome,
@@ -3247,12 +3249,6 @@ registerProcessor('meeting-notes-inject', MeetingInject)
           const started = el.play?.()
           if (started && typeof started.catch === 'function') started.catch(() => { setPlaying(false); fail('录音播放失败，请重试') })
         }
-      }
-      // Map a pointer position on the progress bar to a ratio of the loaded duration.
-      const seekAt = (event) => {
-        const rect = bar.current?.getBoundingClientRect?.()
-        if (!rect || rect.width <= 0 || !(duration > 0)) return
-        seek(Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)) * duration)
       }
       // The transcript exactly as it looked while recording: the recognizer's output
       // plus that meeting's corrections and terminology rules — the same seenOf +
@@ -3300,14 +3296,10 @@ registerProcessor('meeting-notes-inject', MeetingInject)
         finally { setBusy(false) }
       }
       const empty = (text) => h('p', { style: { ...styles.empty, padding: '64px 16px' } }, text)
-      // Total time: the audio's own duration once metadata lands; until then the
-      // recorded seconds are the best known length (same figure the card shows).
-      const total = duration > 0 ? duration : Math.max(0, Number(value?.seconds) || 0)
-      const ratio = total > 0 ? Math.min(1, Math.max(0, playhead / total)) : 0
       let body
       if (!value) body = empty(error ? '加载失败，请检查错误后重试' : '正在加载会议…')
       else if (tab === 'transcript') body = cues.length ? cues.filter((cue) => !query || seenOf(cue).toLowerCase().includes(query.toLowerCase())).map((cue, index) => h('button', {
-        key: cue.id || index, type: 'button', onClick: () => seek(cue.start),
+        key: cue.id || index, type: 'button', disabled: !value.audioName, title: value.audioName ? tx('seekHint') : undefined, onClick: () => seek(cue.start),
         style: { display: 'grid', gridTemplateColumns: '52px 1fr', gap: 12, width: '100%', textAlign: 'left', border: 0, borderRadius: 8, padding: '14px 8px', cursor: 'pointer', color: 'inherit',
           background: playhead >= cue.start && playhead < cue.end ? 'var(--dsw-alias-bg-l1)' : 'transparent' },
       }, [h('span', { key: 'time', style: styles.hint }, clock(cue.start)), h('span', { key: 'text', style: { lineHeight: 1.8 }, title: seenOf(cue) === cue.text ? undefined : cue.text }, [
@@ -3347,31 +3339,32 @@ registerProcessor('meeting-notes-inject', MeetingInject)
         // stays in the tree (hidden) as the media engine every control above drives.
         h('div', { key: 'player', style: { padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' } }, value?.audioName ? [
           h('audio', { key: id, ref: audio, preload: 'metadata', src: `${PREFIX}/audio?name=${encodeURIComponent(value.audioName)}`, style: { display: 'none' },
-            onLoadedMetadata: (event) => { const el = event.currentTarget; setDuration(Number.isFinite(el.duration) ? el.duration : 0); el.playbackRate = rate },
-            onTimeUpdate: (event) => setPlayhead(event.currentTarget.currentTime),
+            onLoadedMetadata: (event) => { const el = event.currentTarget; el.playbackRate = rate
+              setDuration(Number.isFinite(el.duration) ? el.duration : 0)
+              if (pendingSeek.current !== null) {
+                el.currentTime = Number.isFinite(el.duration) ? Math.min(pendingSeek.current, el.duration) : pendingSeek.current
+                pendingSeek.current = null
+                setPlayhead(el.currentTime)
+              }
+            },
+            onDurationChange: (event) => { const seconds = event.currentTarget.duration; setDuration(Number.isFinite(seconds) ? seconds : 0) },
+            onTimeUpdate: (event) => { if (pendingSeek.current === null) setPlayhead(event.currentTarget.currentTime) },
             onPlay: () => setPlaying(true), onPause: () => setPlaying(false), onEnded: () => setPlaying(false),
             onError: () => fail('录音加载失败，文件可能不存在或无法播放') }),
           h(Btn, { key: 'play', variant: 'primary', title: playing ? '暂停' : '播放', 'aria-label': playing ? '暂停' : '播放', onClick: toggle,
             style: { width: 34, height: 34, borderRadius: 999, padding: 0, flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' } },
           h(Icon, { path: playing ? ICONS.pause : ICONS.play, size: playing ? 14 : 13 })),
           h('span', { key: 'now', style: styles.clock }, clock(playhead)),
-          h('div', { key: 'bar', ref: bar, role: 'slider', 'aria-label': '播放进度', 'aria-valuemin': 0, 'aria-valuemax': Math.round(total),
-            'aria-valuenow': Math.round(total > 0 ? Math.min(playhead, total) : playhead), 'aria-valuetext': `${clock(playhead)} / ${clock(total)}`, tabIndex: 0,
-            onPointerDown: (event) => { dragging.current = true; try { event.currentTarget.setPointerCapture?.(event.pointerId) } catch { /* best-effort capture */ } seekAt(event) },
-            onPointerMove: (event) => { if (dragging.current) seekAt(event) },
-            onPointerUp: () => { dragging.current = false },
-            onPointerCancel: () => { dragging.current = false },
+          h('input', { key: 'bar', type: 'range', min: 0, max: total, step: 'any', value: Math.min(playhead, total), disabled: total <= 0,
+            'aria-label': '播放进度', 'aria-valuetext': `${clock(playhead)} / ${clock(total)}`,
+            onChange: (event) => seek(Number(event.currentTarget.value)),
             onKeyDown: (event) => {
               if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') { seek(playhead - 5); event.preventDefault() }
               else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') { seek(playhead + 5); event.preventDefault() }
               else if (event.key === 'Home') { seek(0); event.preventDefault() }
               else if (event.key === 'End') { seek(total); event.preventDefault() }
             },
-            style: { flex: '1 1 140px', minWidth: 140, height: 22, display: 'flex', alignItems: 'center', cursor: 'pointer', touchAction: 'none', userSelect: 'none' } },
-          h('div', { key: 'track', style: { position: 'relative', width: '100%', height: 4, borderRadius: 999, background: 'var(--dsw-alias-border-l3)' } }, [
-            h('div', { key: 'fill', style: { position: 'absolute', top: 0, bottom: 0, left: 0, width: `${ratio * 100}%`, borderRadius: 999, background: 'var(--dsw-alias-brand-primary)' } }),
-            h('div', { key: 'thumb', style: { position: 'absolute', left: `${ratio * 100}%`, top: '50%', width: 12, height: 12, borderRadius: '50%', transform: 'translate(-50%, -50%)', background: 'var(--dsw-alias-brand-primary)', boxShadow: '0 0 0 3px var(--dsw-alias-bg-base)' } }),
-          ])),
+            style: { flex: '1 1 140px', minWidth: 140, height: 22, cursor: 'pointer', accentColor: 'var(--dsw-alias-brand-primary)' } }),
           h('span', { key: 'total', style: styles.clock }, clock(total)),
           h(Btn, { key: 'back', title: '后退 15 秒', onClick: () => seek(playhead - 15) }, '−15s'),
           h(Btn, { key: 'forward', title: '前进 5 秒', onClick: () => seek(playhead + 5) }, '+5s'),

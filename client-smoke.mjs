@@ -229,10 +229,20 @@ const stub = audio.props.ref.current
 stub.paused = true
 stub.play = function () { this.paused = false; return Promise.resolve() }
 stub.pause = function () { this.paused = true }
-audio.props.onLoadedMetadata({ currentTarget: { duration: 26, playbackRate: 1 } })
+stub.readyState = 0
+const earlySlider = all(tree, (element) => element.props['aria-label'] === '播放进度')[0]
+assert.equal(earlySlider.props.max, 12, 'the recorded duration enables scrubbing before metadata')
+earlySlider.props.onChange({ currentTarget: { value: '6' } })
 tree = pane.render()
-assert.equal(text(all(tree, (element) => element.props.key === 'total')[0]), '00:26', 'total time comes from the loaded audio duration')
-assert.equal(text(all(tree, (element) => element.props.key === 'now')[0]), '00:00', 'current time shows the playhead')
+assert.equal(text(all(tree, (element) => element.props.key === 'now')[0]), '00:06')
+all(tree, (element) => element.props.key === 'c2')[0].props.onClick()
+assert.equal(stub.currentTime, 0, 'wait for metadata before applying the latest seek')
+stub.duration = 26; stub.readyState = 1
+audio.props.onLoadedMetadata({ currentTarget: stub })
+assert.equal(stub.currentTime, 12, 'the clicked speaker record supersedes the earlier scrub')
+tree = pane.render()
+assert.equal(text(all(tree, (element) => element.props.key === 'total')[0]), '00:26')
+assert.equal(all(tree, (element) => element.props['aria-label'] === '播放进度')[0].props.value, 12)
 all(tree, (element) => element.props['aria-label'] === '播放')[0].props.onClick()
 assert.equal(stub.paused, false, 'the play button starts the audio')
 audio.props.onPlay({ currentTarget: stub }); tree = pane.render()
@@ -242,17 +252,15 @@ audio.props.onPause({ currentTarget: stub }); tree = pane.render()
 assert.equal(all(tree, (element) => element.props['aria-label'] === '播放').length, 1, 'the button returns to 播放 after pausing')
 let slider = all(tree, (element) => element.props['aria-label'] === '播放进度')[0]
 slider.props.onKeyDown({ key: 'ArrowRight', preventDefault: () => {} })
-assert.equal(stub.currentTime, 5, 'arrow keys seek in 5s steps')
+assert.equal(stub.currentTime, 17, 'arrow keys seek in 5s steps')
 slider.props.onKeyDown({ key: 'End', preventDefault: () => {} })
 assert.equal(stub.currentTime, 26, 'End jumps to the total duration')
 tree = pane.render()
 slider = all(tree, (element) => element.props['aria-label'] === '播放进度')[0]
-slider.props.ref.current = { getBoundingClientRect: () => ({ left: 40, width: 120 }) }
-slider.props.onPointerDown({ pointerId: 7, clientX: 100, currentTarget: { setPointerCapture: () => {} } })
-assert.equal(stub.currentTime, 13, 'pressing mid-bar seeks to that ratio of the duration')
-slider.props.onPointerMove({ pointerId: 7, clientX: 160 })
-assert.equal(stub.currentTime, 26, 'dragging follows the pointer and clamps at the end')
-slider.props.onPointerUp({ pointerId: 7 })
+assert.equal(slider.props.type, 'range')
+slider.props.onChange({ currentTarget: { value: '13' } })
+assert.equal(stub.currentTime, 13, 'scrubbing sets media time as the native range moves')
+slider.props.onChange({ currentTarget: { value: '26' } })
 tree = pane.render()
 assert.equal(text(all(tree, (element) => element.props.key === 'now')[0]), '00:26', 'the time readout follows a drag')
 const tabs = all(tree, (element) => element.props.role === 'tab')
